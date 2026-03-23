@@ -135,6 +135,51 @@ The background process registers message listeners in [*messaging.js*](https://g
 The injected scripts monkey-patch methods in *messaging_injected.js*([BrowserExt](https://github.com/zotero/zotero-connectors/blob/e1a16c8ad2e17c6893554c3f376384e18182202d/src/browserExt/messaging_inject.js)/[Safari](https://github.com/zotero/zotero-connectors/blob/e1a16c8ad2e17c6893554c3f376384e18182202d/src/safari/messaging_inject.js))
 `Zotero.Messaging` class also provides a way to send messages to the background process and add message listeners.
 
+## ZotPilot Agent API
+
+ZotPilot extends this connector with an HTTP bridge for AI agent integration. The extension polls the bridge for save commands and reports results — enabling agents to save papers without clicking the connector icon.
+
+### Architecture
+
+```
+Agent (MCP tool)    Bridge (localhost:2619)    ZotPilot Connector (Chrome)
+      │                      │                        │
+      │──POST /enqueue──────>│                        │
+      │<──200 {request_id}───│                        │
+      │                      │<──GET /pending────────│
+      │                      │──200 {url, action}────>│
+      │                      │                   (opens tab, saves)
+      │                      │<──POST /result─────────│
+      │<──GET /result/{id}───│                        │
+      │──200 {success}──────>│                        │
+```
+
+### Bridge endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/pending` | Extension polls for save commands (every 2s) |
+| `POST` | `/enqueue` | Agent enqueues a save command; returns 503 if extension disconnected |
+| `POST` | `/result` | Extension posts save result |
+| `GET` | `/result/<id>` | Agent polls for result |
+| `POST` | `/heartbeat` | Extension sends liveness signal (every 10s) |
+| `GET` | `/status` | Health check with extension/zotero connectivity |
+
+See `PROTOCOL.md` for the full API specification, error codes, and curl examples.
+
+### Installation
+
+After building the connector (`build.sh -d`), load `build/browserExt` as an unpacked Chrome extension. The bridge (`zotpilot bridge`) must be running for the Agent API to function.
+
+### Error codes
+
+| Code | Meaning |
+|------|---------|
+| `extension_not_connected` | Extension has not sent a heartbeat in >30s |
+| `save_trigger_failed` | `onZoteroButtonElementClick` threw |
+| `completion_unconfirmed` | Save triggered but no completion signal within 60s — may have succeeded |
+| `zotero_not_running` | Extension cannot reach Zotero desktop |
+
 ## Contact
 
 If you have any questions about developing Zotero Connectors you can join the discussion in the
