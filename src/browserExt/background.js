@@ -73,8 +73,12 @@ Zotero.Connector_Browser = new function() {
 			this.isDev = (await browser.management.getSelf()).installType === 'development';
 			_isBetaBuildBeyondExpiration = this.isDev && new Date > _betaBuildExpiration;
 		}
+		// ZotPilot Agent API — enable AI agent integration
+		if (typeof Zotero.AgentAPI !== 'undefined') {
+			Zotero.AgentAPI.init();
+		}
 	}
-	
+
 	this._getNewTabInfo = function() {
 		return {
 			url: null,
