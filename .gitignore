@@ -4,3 +4,7 @@ cert
 config.sh
 dist
 node_modules
+
+# OMC
+.omc/
+CLAUDE.md
