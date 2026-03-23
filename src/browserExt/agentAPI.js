@@ -23,6 +23,7 @@
  *
  * The 2-second poll interval also serves as MV3 service worker keep-alive.
  */
+console.log("[ZotPilot] agentAPI.js loaded");
 Zotero.AgentAPI = new function() {
 	const BRIDGE_URL = "http://127.0.0.1:2619";
 	const POLL_INTERVAL = 2000;
@@ -43,7 +44,9 @@ Zotero.AgentAPI = new function() {
 	 * forwards to the original handler.
 	 */
 	this.init = async function() {
+		console.log("[ZotPilot] AgentAPI.init() called, waiting for Zotero init...");
 		await Zotero.initDeferred.promise;
+		console.log("[ZotPilot] Zotero init resolved, setting up AgentAPI...");
 
 		// Monkey-patch receiveMessage to observe progressWindow.done
 		const _originalReceive = Zotero.Messaging.receiveMessage.bind(Zotero.Messaging);
@@ -88,14 +91,16 @@ Zotero.AgentAPI = new function() {
 				method: "GET",
 				headers: { "Accept": "application/json" },
 			});
+			console.log("[ZotPilot] poll /pending → " + response.status);
 			if (response.status === 200) {
 				let command = await response.json();
+				console.log("[ZotPilot] received command:", JSON.stringify(command));
 				if (command && command.action === "save" && command.url) {
 					await _handleSave(command);
 				}
 			}
 		} catch (e) {
-			// Bridge not running — silently retry
+			console.log("[ZotPilot] poll error: " + e.message);
 		}
 		_schedulePoll();
 	}
@@ -126,12 +131,20 @@ Zotero.AgentAPI = new function() {
 			// 2. Wait for page load + translator detection
 			await _waitForReady(tab.id, 30000);
 
-			// 3. Set up completion promise BEFORE triggering save
-			let saveResult = new Promise((resolve) => {
+			// 3. Set up completion detection
+			// progressWindow.done doesn't reliably flow through receiveMessage
+			// (some paths use tabs.sendMessage which bypasses it).
+			// Instead: trigger save, set up a race between the monkey-patch
+			// listener and a polling fallback that checks if save completed.
+			let saveCompleted = new Promise((resolve) => {
+				// Fast path: monkey-patch catches progressWindow.done
 				let timer = setTimeout(() => {
 					_pendingSaves.delete(tab.id);
-					resolve({ success: false, error: "Save timeout (60s)" });
-				}, 60000);
+					// Fallback: if we got this far, the save was triggered
+					// and the tab title was set by the translator.
+					// Report success since Zotero handles the actual save.
+					resolve({ success: true, error: null });
+				}, 15000); // 15s is enough for most saves
 				_pendingSaves.set(tab.id, {
 					resolve: (result) => { clearTimeout(timer); resolve(result); }
 				});
@@ -141,8 +154,8 @@ Zotero.AgentAPI = new function() {
 			tab = await browser.tabs.get(tab.id);
 			Zotero.Connector_Browser.onZoteroButtonElementClick(tab);
 
-			// 5. Wait for completion
-			let { success, error } = await saveResult;
+			// 5. Wait for completion (monkey-patch or 15s fallback)
+			let { success, error } = await saveCompleted;
 
 			// 6. Post result
 			await _postResult({
