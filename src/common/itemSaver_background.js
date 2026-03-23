@@ -254,11 +254,9 @@ Zotero.ItemSaver._fetchAttachment = async function(attachment, tab, attemptBotPr
 		if (attachment.mimeType.toLowerCase() === receivedMimeType.toLowerCase()) {
 			return xhr.response;
 		}
-		// Be lenient for PDFs served as application/octet-stream (e.g., some hosts like OSF)
-		// We already allow octet-stream for pdf.js detection; accept it here too
-		const expectedPDFIsOctetStream = attachment.mimeType.toLowerCase() === 'application/pdf'
-			&& receivedMimeType.toLowerCase() === 'application/octet-stream'
-		if (expectedPDFIsOctetStream) {
+		// Trust the translator's mimeType when the server returns octet-stream,
+		// since some servers serve all binary files as octet-stream (e.g., OSF, Libraries Tasmania)
+		if (receivedMimeType.toLowerCase() === 'application/octet-stream') {
 			return xhr.response;
 		}
 	} catch (e) {
@@ -303,8 +301,13 @@ Zotero.ItemSaver._passJSBotDetectionViaHiddenIframe = async function(url, tab) {
 	Zotero.debug(`Attempting to pass JS bot detection via hidden iframe for URL: ${url}`);
 
 	// Wait for the monitor frame to load
+	let messageListener;
 	const waitForAttachmentPromise = new Promise((resolve) => {
-		const messageListener = async (message) => {
+		// WARNING: Do not make this listener async. The browser-polyfill wraps async
+		// onMessage listeners such that they call sendResponse(undefined) for messages
+		// they don't handle, stealing responses from other listeners. This will be safe
+		// to change once Chromium fully supports native browser.* APIs.
+		messageListener = (message) => {
 			if (message.type === 'attachment-monitor-loaded' 
 				&& !message.success) {
 				Zotero.debug(`Iframe loaded for ${url}`);
@@ -341,6 +344,7 @@ Zotero.ItemSaver._passJSBotDetectionViaHiddenIframe = async function(url, tab) {
 		return pdfURL;
 	}
 	finally {
+		browser.runtime.onMessage.removeListener(messageListener);
 		await browser.scripting.executeScript({
 			target: { tabId: tab.id },
 			func: (id) => {
