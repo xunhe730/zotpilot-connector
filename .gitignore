@@ -8,3 +8,8 @@ node_modules
 # OMC
 .omc/
 CLAUDE.md
+
+# AI agent documentation (local only)
+AGENTS.md
+**/AGENTS.md
+.docs/

@@ -70,11 +70,19 @@ Zotero.AgentAPI = new function() {
 		//     progressWindow.done — see init() JSDoc above) ---
 		const _originalReceive = Zotero.Messaging.receiveMessage.bind(Zotero.Messaging);
 		Zotero.Messaging.receiveMessage = async function(messageName, args, tab, frameId) {
-			if (messageName === "progressWindow.done" && tab && _pendingSaves.has(tab.id)) {
+			// Unwrap inject-side messages: ["Messaging.sendMessage", [actualName, actualArgs]]
+			let effectiveName = messageName;
+			let effectiveArgs = args;
+			if (messageName === "Messaging.sendMessage" && Array.isArray(args) && typeof args[0] === "string") {
+				Zotero.debug("[ZotPilot] receiveMessage unwrapped: " + args[0]);
+				effectiveName = args[0];
+				effectiveArgs = args[1];
+			}
+			if (effectiveName === "progressWindow.done" && tab && _pendingSaves.has(tab.id)) {
 				let entry = _pendingSaves.get(tab.id);
 				_pendingSaves.delete(tab.id);
-				let success = args[0];
-				let error = args.length > 1 ? args[1] : null;
+				let success = effectiveArgs && effectiveArgs[0];
+				let error = effectiveArgs && effectiveArgs.length > 1 ? effectiveArgs[1] : null;
 				Zotero.debug("[ZotPilot] completion via receiveMessage patch (defense-in-depth)");
 				entry.resolve({ success: !!success, error, _via: "receiveMessage" });
 			}
