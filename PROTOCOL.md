@@ -159,8 +159,8 @@ Content-Type: application/json
 | `url` | string | always | Echoed from the command |
 | `title` | string | always | Page/tab title at time of result (the saved item's title) |
 | `item_key` | string \| null | no | Zotero item key (only set for ~5% of saves via saveAsWebpage path) |
-| `collection_key` | string \| null | no | Echoed from command |
-| `tags` | string[] | no | Echoed from command |
+| `collection_key` | string \| null | no | Echoed from command. The extension does **not** directly route items to collections — it echoes this field back so the bridge can apply collection placement via the Zotero API. Omitted on error-path responses (e.g. `save_trigger_failed`). |
+| `tags` | string[] | no | Echoed from command. The extension does **not** directly apply tags — it echoes this field back so the bridge can apply tags via the Zotero API. Omitted on error-path responses (e.g. `save_trigger_failed`). |
 | `_detected_via` | string | always | Telemetry: `"sendMessage"` \| `"receiveMessage"` \| `"timeout"` |
 
 ---
@@ -200,7 +200,7 @@ Content-Type: application/json
 
 ```json
 {
-  "extension_version": "0.1.0",
+  "extension_version": "0.0.2",
   "zotero_connected": true
 }
 ```
@@ -225,7 +225,7 @@ Health check and connectivity status.
   "port": 2619,
   "extension_connected": true,
   "extension_last_seen_s": 3.2,
-  "extension_version": "0.1.0",
+  "extension_version": "0.0.2",
   "zotero_running": true
 }
 ```
@@ -266,8 +266,8 @@ interface SaveResult {
   url:          string;
   title:        string;
   item_key?:    string | null;   // only present for saveAsWebpage path (~5%)
-  collection_key?: string | null;
-  tags?:        string[];
+  collection_key?: string | null; // echo-only: extension echoes back for bridge to apply via Zotero API; omitted on error-path responses
+  tags?:        string[];         // echo-only: extension echoes back for bridge to apply via Zotero API; omitted on error-path responses
   warning?:     string;          // present when routing partially/fully failed
   _detected_via?: "sendMessage" | "receiveMessage" | "timeout";
 }
@@ -432,4 +432,4 @@ The protocol is backward-compatible. New optional fields may be added to request
 
 Breaking changes (removing or renaming fields) will increment the major version and be documented in CHANGELOG.
 
-Current protocol version: **1.0.0** (matches `extension_version: 0.1.0` in heartbeats)
+Current protocol version: **1.0.0** (matches `extension_version: 0.0.2` in heartbeats)

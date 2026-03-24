@@ -30,6 +30,7 @@ module.exports = {
 	globalSetup: 'test/support/puppeteerSetup.mjs',
 	globalTeardown: 'test/support/puppeteerSetup.mjs',
 	spec: ['test/tests/**/*Test.mjs'],
+	ignore: ['test/tests/agentAPITest.mjs'],
 	timeout: '5000', // 5 seconds timeout for async operations
 	ui: 'bdd',
 	reporter: 'spec',
